@@ -271,7 +271,8 @@
   const gameCanvas = $('gameCanvas');
   const gctx = gameCanvas.getContext('2d');
 
-  const PX_PER_METER = 12;      // 距離1mあたりの画面ピクセル数（スクロール量計算用）
+  const PX_PER_METER = 8;       // 距離1mあたりの画面ピクセル数（小さいほど見える範囲が広い）
+  const PLANE_SCALE = 1.05;     // 飛行中の機体の大きさ
   const PLANE_SCREEN_X_RATIO = 0.30; // 画面のどのあたりに機体を固定表示するか
 
   let dpr = window.devicePixelRatio || 1;
@@ -398,7 +399,7 @@
     GameState.lastTapTime = now;
 
     const p = selectedPlane;
-    const decay = Math.max(0.25, 1 - GameState.elapsed * 0.05);
+    const decay = Math.max(0.25, 1 - GameState.elapsed * 0.022);
     const impulse = (0.6 + p.lift * 0.12) * decay;
     GameState.vy += impulse;
     vibrate(6);
@@ -526,11 +527,18 @@
     const scrollX = GameState.x * PX_PER_METER;
 
     // 雲（視差スクロール）
+    // 雲は一定間隔(CLOUD_SPACING)で並べ、全体の長さ(CLOUD_TRACK)を周期に
+    // 1回だけmodを取ることでジャンプせず滑らかにループさせる
     gctx.globalAlpha = 0.9;
-    for (let i = 0; i < 6; i++) {
-      const baseX = i * 260 - ((scrollX * 0.25) % 260);
+    const CLOUD_SPACING = 260;
+    const CLOUD_COUNT = 6;
+    const CLOUD_TRACK = CLOUD_SPACING * CLOUD_COUNT;
+    for (let i = 0; i < CLOUD_COUNT; i++) {
+      const baseX = i * CLOUD_SPACING;
+      const raw = (baseX - scrollX * 0.25 - CLOUD_SPACING) % CLOUD_TRACK;
+      const screenX = ((raw + CLOUD_TRACK) % CLOUD_TRACK) - CLOUD_SPACING;
       const cy = 60 + (i % 3) * 40;
-      drawCloud(((baseX % (cw + 300)) + (cw + 300)) % (cw + 300) - 150, cy);
+      drawCloud(screenX, cy);
     }
     gctx.globalAlpha = 1;
 
@@ -559,7 +567,7 @@
     const planeScreenX = cw * PLANE_SCREEN_X_RATIO;
     const planeScreenY = groundScreenY - GameState.y * PX_PER_METER;
     const flightAngle = Math.atan2(-GameState.vy, GameState.vx || 0.001);
-    drawPaperPlane(gctx, planeScreenX, planeScreenY, flightAngle, 1.6, selectedPlane.color);
+    drawPaperPlane(gctx, planeScreenX, planeScreenY, flightAngle, PLANE_SCALE, selectedPlane.color);
 
     // 着地ダスト
     GameState.groundParticles.forEach((pt) => {

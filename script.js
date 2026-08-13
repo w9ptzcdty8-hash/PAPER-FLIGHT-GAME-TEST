@@ -292,6 +292,7 @@
     wind: 0, windTarget: 0, windTimer: 0, windChangeInterval: 2.5,
     elapsed: 0,
     lastTapTime: 0,
+    tapBoost: 0, // タップで積み上がる「落下しにくさ」。時間で自然に減っていく
     hasLeftGround: false,
     groundParticles: [],
   };
@@ -383,12 +384,16 @@
     GameState.x = 0;
     GameState.y = 0.05;
     GameState.elapsed = 0;
+    GameState.tapBoost = 0;
     GameState.hasLeftGround = false;
   }
 
-  const TAP_VY_CAP = 3.0; // タップで戻せる上向き速度の上限（これ以上は上昇させない）
+  const TAP_BOOST_MAX = 3.0;       // タップで積み上げられる「落下しにくさ」の上限
+  const TAP_BOOST_DECAY_RATE = 2.0; // 何もしないと1秒あたりこれだけ効果が薄れる
+  const TAP_MAX_REDUCTION = 0.85;   // 最大までタップした時、重力を何%まで弱められるか
 
-  // 飛行中のタップで「機体の先が下がるのを防ぐ」＝落下にブレーキをかける
+  // 飛行中のタップで「機体の先が下がるのを防ぐ」＝vyを直接持ち上げず、
+  // 重力の効きを一時的に弱めることで落下にブレーキをかける
   function onFlyTap() {
     if (GameState.phase !== 'flying') return;
     const now = performance.now();
@@ -398,10 +403,10 @@
     // タップ1回あたりの効果は全機体共通。時間経過で急速に弱まるため、
     // 連打してもどこかで必ず落ち始める（無限ホバリング防止）
     const decay = Math.max(0, 1 - GameState.elapsed * 0.12);
-    const impulse = 1.3 * decay;
-    // 上向き速度をTAP_VY_CAPまでしか戻せない＝あくまで「落下を食い止める」効果にとどめ、
-    // 連打しても機体が上や後ろに暴走しないようにする
-    GameState.vy = Math.min(GameState.vy + impulse, TAP_VY_CAP);
+    const tapPower = 1.0 * decay;
+    // 上向き速度(vy)には一切触れず、「落下しにくさ」を積み上げるだけ。
+    // これでvyが既に大きい時にタップしても、値を引き下げてしまうことがない
+    GameState.tapBoost = Math.min(GameState.tapBoost + tapPower, TAP_BOOST_MAX);
     vibrate(6);
   }
   gameCanvas.addEventListener('pointerdown', onFlyTap);
@@ -469,7 +474,13 @@
     GameState.vx += ax * dt;
     GameState.vx -= dragCoeff * GameState.vx * dt;
 
-    GameState.vy -= gravity * dt;
+    // タップで積み上げた「落下しにくさ」は時間とともに自然に薄れる
+    // （連打をやめると1〜1.5秒ほどで効果が切れ、通常の重力に戻る）
+    GameState.tapBoost = Math.max(0, GameState.tapBoost - TAP_BOOST_DECAY_RATE * dt);
+    const gravityReduction = clamp(GameState.tapBoost / TAP_BOOST_MAX, 0, 1) * TAP_MAX_REDUCTION;
+    const effectiveGravity = gravity * (1 - gravityReduction);
+
+    GameState.vy -= effectiveGravity * dt;
 
     GameState.x += GameState.vx * dt;
     GameState.y += GameState.vy * dt;

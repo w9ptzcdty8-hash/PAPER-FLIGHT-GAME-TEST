@@ -386,7 +386,9 @@
     GameState.hasLeftGround = false;
   }
 
-  // 飛行中のタップで機体を持ち上げる
+  const TAP_VY_CAP = 3.0; // タップで戻せる上向き速度の上限（これ以上は上昇させない）
+
+  // 飛行中のタップで「機体の先が下がるのを防ぐ」＝落下にブレーキをかける
   function onFlyTap() {
     if (GameState.phase !== 'flying') return;
     const now = performance.now();
@@ -397,7 +399,9 @@
     // 連打してもどこかで必ず落ち始める（無限ホバリング防止）
     const decay = Math.max(0, 1 - GameState.elapsed * 0.12);
     const impulse = 1.3 * decay;
-    GameState.vy += impulse;
+    // 上向き速度をTAP_VY_CAPまでしか戻せない＝あくまで「落下を食い止める」効果にとどめ、
+    // 連打しても機体が上や後ろに暴走しないようにする
+    GameState.vy = Math.min(GameState.vy + impulse, TAP_VY_CAP);
     vibrate(6);
   }
   gameCanvas.addEventListener('pointerdown', onFlyTap);
@@ -566,7 +570,10 @@
     // 機体
     const planeScreenX = cw * PLANE_SCREEN_X_RATIO;
     const planeScreenY = groundScreenY - GameState.y * PX_PER_METER;
-    const flightAngle = Math.atan2(-GameState.vy, GameState.vx || 0.001);
+    // 描画角度は±70度程度に制限。強い向かい風などでvxが小さくなっても
+    // 機体が後ろを向いて見えることがないようにする
+    const rawAngle = Math.atan2(-GameState.vy, GameState.vx || 0.001);
+    const flightAngle = clamp(rawAngle, -1.22, 1.22);
     drawPaperPlane(gctx, planeScreenX, planeScreenY, flightAngle, PLANE_SCALE, selectedPlane.color);
 
     // 着地ダスト

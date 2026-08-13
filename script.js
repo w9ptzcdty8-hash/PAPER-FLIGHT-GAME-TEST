@@ -51,24 +51,24 @@
     {
       id: 'hayabusa',
       name: 'はやぶさ号',
-      desc: 'スピード重視。よく飛ぶが風にはよわい。',
-      weight: 3, lift: 4, power: 9,
+      desc: '高速で飛び出すが滞空は短い。風に左右されにくい玄人向け機体。',
+      lift: 3, speed: 9,
       color: '#FF6F61',
       icon: '⚡',
     },
     {
       id: 'tsubame',
       name: 'つばめ号',
-      desc: 'バランス重視。だれでも扱いやすい標準機。',
-      weight: 6, lift: 6, power: 6,
+      desc: 'スピードも滞空もバランス型。だれでも扱いやすい標準機。',
+      lift: 6, speed: 6,
       color: '#2FB6A6',
       icon: '🍃',
     },
     {
       id: 'ootori',
       name: 'おおとり号',
-      desc: '安定重視。風に強くゆっくり長く浮く。',
-      weight: 8, lift: 9, power: 3,
+      desc: 'ゆっくり進むが長く浮く。風の影響を大きく受けるバクチ機体。',
+      lift: 9, speed: 3,
       color: '#FFC94D',
       icon: '🪶',
     },
@@ -240,19 +240,14 @@
         </div>
         <div class="plane-stats">
           <div class="stat-row">
-            <span>おもさ</span>
-            <div class="stat-bar"><div class="stat-bar-fill" style="width:${statPercent(p.weight)};background:${p.color}"></div></div>
-            <span>${p.weight}</span>
-          </div>
-          <div class="stat-row">
             <span>たいくう</span>
             <div class="stat-bar"><div class="stat-bar-fill" style="width:${statPercent(p.lift)};background:${p.color}"></div></div>
             <span>${p.lift}</span>
           </div>
           <div class="stat-row">
-            <span>すいしん</span>
-            <div class="stat-bar"><div class="stat-bar-fill" style="width:${statPercent(p.power)};background:${p.color}"></div></div>
-            <span>${p.power}</span>
+            <span>スピード</span>
+            <div class="stat-bar"><div class="stat-bar-fill" style="width:${statPercent(p.speed)};background:${p.color}"></div></div>
+            <span>${p.speed}</span>
           </div>
         </div>
         <button class="btn btn--primary plane-select-btn">えらぶ</button>
@@ -381,7 +376,7 @@
     const p = selectedPlane;
     const angleRad = (GameState.angle * Math.PI) / 180;
     const powerFrac = 0.3 + (clamp(GameState.power, 0, 100) / 100) * 0.7;
-    const launchSpeed = (5 + (p.power / 10) * 9) * powerFrac;
+    const launchSpeed = (5 + (p.speed / 10) * 9) * powerFrac;
 
     GameState.vx = launchSpeed * Math.cos(angleRad);
     GameState.vy = launchSpeed * Math.sin(angleRad);
@@ -398,9 +393,10 @@
     if (now - GameState.lastTapTime < 90) return; // 連打すぎ防止のクールダウン
     GameState.lastTapTime = now;
 
-    const p = selectedPlane;
-    const decay = Math.max(0.25, 1 - GameState.elapsed * 0.022);
-    const impulse = (0.6 + p.lift * 0.12) * decay;
+    // タップ1回あたりの効果は全機体共通。時間経過で急速に弱まるため、
+    // 連打してもどこかで必ず落ち始める（無限ホバリング防止）
+    const decay = Math.max(0, 1 - GameState.elapsed * 0.12);
+    const impulse = 1.3 * decay;
     GameState.vy += impulse;
     vibrate(6);
   }
@@ -452,16 +448,20 @@
   function stepPhysics(dt) {
     const p = selectedPlane;
 
-    const gravityMult = clamp(0.4 + (p.weight / 10) * 0.8 - (p.lift / 10) * 0.6, 0.2, 1.3);
+    // 重力：たいくう性能だけで決まる（たいくうが低いほど速く落ちる）
+    const gravityMult = clamp(1.3 - (p.lift / 10) * 1.0, 0.3, 1.3);
     const gravity = 9.8 * gravityMult;
 
-    const dragCoeff = clamp(0.03 + (p.lift / 10) * 0.12 - (p.power / 10) * 0.05, 0.015, 0.2);
-    const windInfluence = ((11 - p.weight) / 10) * 0.6;
+    // 空気抵抗：スピードが高いほど小さい（速い機体は失速しにくい）
+    const dragCoeff = clamp(0.16 - (p.speed / 10) * 0.13, 0.02, 0.16);
+
+    // 風の影響：たいくう性能（＝翼の大きさ）が高いほど強く受ける（バフもデバフも）
+    const windInfluence = (p.lift / 10) * 0.9;
 
     GameState.elapsed += dt;
     updateWind(dt);
 
-    const ax = GameState.wind * windInfluence * 0.6;
+    const ax = GameState.wind * windInfluence;
     GameState.vx += ax * dt;
     GameState.vx -= dragCoeff * GameState.vx * dt;
 

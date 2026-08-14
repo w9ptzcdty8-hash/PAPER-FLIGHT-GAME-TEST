@@ -392,22 +392,30 @@
      TAP_VY_RANGE      : |vy|がこの値を超えるとタップの効果はほぼ0になる。
                           値を大きくするほど「多少vyがブレていてもタップが効く」
                           優しい仕様になる。小さくするほどシビア（水平キープが難しい）。
-     TAP_BASE_POWER    : vy=0（水平）でタップした瞬間の、1回あたりの上昇量。
+     TAP_BASE_POWER    : vy=0（水平）かつ十分な前進速度がある時、タップした瞬間の1回あたりの上昇量。
                           大きくするとタップの威力そのものが強くなる。
                           ※ここを上げすぎると、連打の最大レートだけで常に重力に
                             勝ててしまい「vxが減ると追いつかなくなる」感覚が消えるので注意。
      TAP_DECAY_RATE    : 飛行時間が経つにつれてタップ威力がごく微量ずつ弱くなる速さ。
      TAP_DECAY_FLOOR   : どれだけ時間が経ってもこれ以上は弱くならない下限（0にはならない）。
+     TAP_VX_REF        : タップが「フル効果」になるために必要なvxの目安値。
+                          揚力は前に進んでこそ生まれるものなので、vxが0以下ならタップの
+                          効果も0になる（＝真上にふわふわ浮くような不自然さを防ぐ）。
+                          vxの飽和判定に使うVX_REF(下の速度揚力パラメータ)より低い値にしてあり、
+                          「そこそこ前に進んでいれば十分タップが効く」くらいの手加減にしている。
   ======================================================================== */
   const TAP_VY_RANGE = 9.0;
   const TAP_BASE_POWER = 0.6;
   const TAP_DECAY_RATE = 0.006;
   const TAP_DECAY_FLOOR = 0.55;
+  const TAP_VX_REF = 4.0;
 
   // 飛行中のタップで「機体の先が下がるのを防ぐ」＝vyを直接持ち上げる。
-  // ただし効果はvyが0（水平）に近いほど大きく、vyが大きく崩れているとほぼ効かない。
-  // → タイミングよく連打し続けられれば理論上ずっと水平を保てる（ホバリング）が、
-  //   ズレるほど効きが弱まりさらに立て直しにくくなる、という難易度カーブになる。
+  // ただし効果は
+  //   ①vyが0（水平）に近いほど大きい
+  //   ②vxが十分あるほど大きく、vxが0以下なら効果ゼロ（揚力はvxがあって初めて生まれるため）
+  // → タイミングよく連打し続け、かつ前進速度を保てれば理論上ずっと水平を保てる（ホバリング）が、
+  //   vyがズレる・vxが失われる、のどちらでも効きが弱まっていく難易度カーブになる。
   function onFlyTap() {
     if (GameState.phase !== 'flying') return;
     const now = performance.now();
@@ -418,9 +426,11 @@
     const vyProximity = clamp(1 - Math.abs(GameState.vy) / TAP_VY_RANGE, 0, 1);
     // 飛行時間が経つほどごく微量弱まるが、TAP_DECAY_FLOORより下にはならない
     const timeFactor = Math.max(TAP_DECAY_FLOOR, 1 - GameState.elapsed * TAP_DECAY_RATE);
+    // vxが0以下なら0、TAP_VX_REF以上あれば1（フル効果）になる係数
+    const vxFactor = clamp(GameState.vx / TAP_VX_REF, 0, 1);
 
-    GameState.vy += TAP_BASE_POWER * vyProximity * timeFactor;
-    vibrate(6);
+    GameState.vy += TAP_BASE_POWER * vyProximity * timeFactor * vxFactor;
+    if (vxFactor > 0) vibrate(6); // 効果が無い時は振動フィードバックも出さない
   }
   gameCanvas.addEventListener('pointerdown', onFlyTap);
 

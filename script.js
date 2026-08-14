@@ -400,7 +400,7 @@
      TAP_DECAY_FLOOR   : どれだけ時間が経ってもこれ以上は弱くならない下限（0にはならない）。
   ======================================================================== */
   const TAP_VY_RANGE = 9.0;
-  const TAP_BASE_POWER = 0.8;
+  const TAP_BASE_POWER = 0.6;
   const TAP_DECAY_RATE = 0.006;
   const TAP_DECAY_FLOOR = 0.55;
 
@@ -485,13 +485,19 @@
   const LIFT_EXP_SCALE = 1.5;
   const MAX_SPEED_LIFT_REDUCTION = 0.65;
 
+  // 重力の基準値（実際の重力加速度9.8ではなく、ゲームとして気持ちいい値に調整したもの）。
+  // 下げるほど全体的に長く飛ぶ・長く滞空するようになる。
+  // 目安：角度45度・パワー100%・タップ無しで約30〜40m、現実的な連打（6〜7回/秒を維持）で
+  // はやぶさ号・つばめ号が約100m前後になるよう6.6に設定している。
+  const GRAVITY_BASE = 6.6;
+
   // ---- 物理シミュレーション ----
   function stepPhysics(dt) {
     const p = selectedPlane;
 
     // 重力の素の強さ：たいくう性能だけで決まる（たいくうが低いほど速く落ちる）
     const gravityMult = clamp(1.3 - (p.lift / 10) * 1.0, 0.3, 1.3);
-    const gravity = 9.8 * gravityMult;
+    const gravity = GRAVITY_BASE * gravityMult;
 
     // 空気抵抗：スピードが高いほどvxが減りにくい。
     // 0.20 = 基準の抵抗の強さ／0.19 = スピードがどれだけ抵抗を減らすか（大きいほどスピード差が効く）

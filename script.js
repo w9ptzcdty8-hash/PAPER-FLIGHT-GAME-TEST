@@ -400,7 +400,7 @@
      TAP_DECAY_FLOOR   : どれだけ時間が経ってもこれ以上は弱くならない下限（0にはならない）。
   ======================================================================== */
   const TAP_VY_RANGE = 9.0;
-  const TAP_BASE_POWER = 0.6;
+  const TAP_BASE_POWER = 0.8;
   const TAP_DECAY_RATE = 0.006;
   const TAP_DECAY_FLOOR = 0.55;
 

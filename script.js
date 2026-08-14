@@ -356,7 +356,7 @@
       GameState.phase = 'aiming-power';
       $('angleBarTrack').style.display = 'none';
       $('powerBarTrack').style.display = 'flex';
-      $('aimLabel').textContent = 'つぎは パワー！ いいところでタップ！';
+      $('aimLabel').textContent = '画面をタップして パワーをきめろ！';
       vibrate(10);
     } else if (GameState.phase === 'aiming-power') {
       launchPlane();

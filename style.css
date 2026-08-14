@@ -461,6 +461,22 @@ button, .btn{
 .tap-hint.is-visible{ opacity:1; animation: hintBob 1s ease-in-out infinite; }
 @keyframes hintBob{ 0%,100%{ transform: translate(-50%,-50%);} 50%{ transform: translate(-50%,-58%);} }
 
+.debug-info{
+  position:absolute;
+  top: calc(env(safe-area-inset-top) + 64px);
+  left: 14px;
+  z-index:5;
+  font-family: monospace;
+  font-size:11px;
+  line-height:1.5;
+  color: rgba(255,255,255,.85);
+  background: rgba(43,43,51,.45);
+  padding:4px 8px;
+  border-radius:8px;
+  pointer-events:none;
+  white-space:pre;
+}
+
 .aim-panel{
   position:absolute;
   left:0; right:0; bottom:0;

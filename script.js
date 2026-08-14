@@ -399,7 +399,7 @@
      TAP_DECAY_RATE    : 飛行時間が経つにつれてタップ威力がごく微量ずつ弱くなる速さ。
      TAP_DECAY_FLOOR   : どれだけ時間が経ってもこれ以上は弱くならない下限（0にはならない）。
   ======================================================================== */
-  const TAP_VY_RANGE = 6.0;
+  const TAP_VY_RANGE = 9.0;
   const TAP_BASE_POWER = 0.6;
   const TAP_DECAY_RATE = 0.006;
   const TAP_DECAY_FLOOR = 0.55;
@@ -659,15 +659,27 @@
     dt = clamp(dt, 0, 0.033);
     lastTs = ts;
 
+    if (GameState.phase === 'aiming-angle' || GameState.phase === 'aiming-power') {
+      // 狙っている間も風は変化させる（ユーザーが発射タイミングを風に合わせられるように）
+      updateWind(dt);
+    }
     if (GameState.phase === 'flying') {
       stepPhysics(dt);
     }
     if (GameState.phase === 'landed' || GameState.phase === 'flying') {
       updateDustParticles(dt);
     }
+    updateDebugInfo();
     drawGameScene();
 
     requestAnimationFrame(gameLoopTick);
+  }
+
+  // ---- デバッグ表示（vx / vy） ----
+  function updateDebugInfo() {
+    const el = $('debugInfo');
+    if (!el) return;
+    el.textContent = `vx:${GameState.vx.toFixed(2)}  vy:${GameState.vy.toFixed(2)}`;
   }
 
   // ---- リザルト ----

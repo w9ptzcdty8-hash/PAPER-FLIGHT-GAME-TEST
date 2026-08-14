@@ -250,9 +250,9 @@
             <span>${p.speed}</span>
           </div>
         </div>
-        <button class="btn btn--primary plane-select-btn">えらぶ</button>
       `;
-      card.querySelector('.plane-select-btn').addEventListener('click', () => {
+      // カード全体をタップで選択（ボタンは無し）
+      card.addEventListener('click', () => {
         selectedPlane = p;
         startGame();
       });
@@ -342,8 +342,7 @@
     $('aimPanel').style.display = 'flex';
     $('angleBarTrack').style.display = 'block';
     $('powerBarTrack').style.display = 'none';
-    $('aimLabel').textContent = 'タイミングよく タップして 角度をきめろ！';
-    $('btnAim').textContent = 'タップ！';
+    $('aimLabel').textContent = '画面をタップして 角度をきめろ！';
     $('tapHint').classList.remove('is-visible');
     $('distanceLive').innerHTML = '0.0<span>m</span>';
 
@@ -351,8 +350,6 @@
     updateWindUI();
     requestAnimationFrame(gameLoopTick);
   }
-
-  $('btnAim').addEventListener('click', onAimTap);
 
   function onAimTap() {
     if (GameState.phase === 'aiming-angle') {
@@ -432,7 +429,18 @@
     GameState.vy += TAP_BASE_POWER * vyProximity * timeFactor * vxFactor;
     if (vxFactor > 0) vibrate(6); // 効果が無い時は振動フィードバックも出さない
   }
-  gameCanvas.addEventListener('pointerdown', onFlyTap);
+
+  // 画面のどこをタップしても反応するよう、ゲーム画面全体でタップを受け取り、
+  // 今のフェーズに応じて「狙いの確定」か「飛行中のタップ」に振り分ける
+  function onGameScreenTap(e) {
+    if (e.target.closest && e.target.closest('.hud-back')) return; // 戻るボタンは対象外
+    if (GameState.phase === 'aiming-angle' || GameState.phase === 'aiming-power') {
+      onAimTap();
+    } else if (GameState.phase === 'flying') {
+      onFlyTap();
+    }
+  }
+  screens.game.addEventListener('pointerdown', onGameScreenTap);
 
   // ---- 風のロジック ----
   function updateWind(dt) {
@@ -691,11 +699,14 @@
     requestAnimationFrame(gameLoopTick);
   }
 
-  // ---- デバッグ表示（vx / vy） ----
+  // ---- デバッグ表示（vx / vy / y） ----
   function updateDebugInfo() {
     const el = $('debugInfo');
     if (!el) return;
-    el.textContent = `vx:${GameState.vx.toFixed(2)}  vy:${GameState.vy.toFixed(2)}`;
+    el.innerHTML =
+      `<div>vx: ${GameState.vx.toFixed(2)}</div>` +
+      `<div>vy: ${GameState.vy.toFixed(2)}</div>` +
+      `<div>y: ${GameState.y.toFixed(2)}</div>`;
   }
 
   // ---- リザルト ----

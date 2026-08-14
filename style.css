@@ -367,12 +367,6 @@ button, .btn{
   height:100%;
   border-radius:6px;
 }
-.plane-select-btn{
-  align-self:flex-end;
-  margin-top:2px;
-  padding:9px 20px;
-  font-size:13px;
-}
 
 /* ============================================================
    ゲーム画面
@@ -416,16 +410,33 @@ button, .btn{
   box-shadow: var(--shadow-sm);
   display:flex; align-items:center; gap:8px;
   font-family:var(--font-display);
+  /* 「無風」〜「向かい風」まで文字数が変わっても幅がぷるぷる動かないよう固定 */
+  width: 132px;
+  box-sizing: border-box;
+  flex-shrink:0;
 }
 .wind-arrow{
   font-size:16px;
   color: var(--mint-deep);
   transition: transform .4s ease, color .3s ease;
   display:inline-block;
+  flex-shrink:0;
 }
-.wind-text{ display:flex; flex-direction:column; line-height:1.1; }
-.wind-text span:first-child{ font-size:11px; color:var(--ink-soft); }
+.wind-text{ display:flex; flex-direction:column; line-height:1.1; flex:1; }
+.wind-text span:first-child{
+  font-size:11px; color:var(--ink-soft);
+  display:inline-block;
+  width: 4.4em; /* 「向かい風」相当の幅を確保 */
+}
 .wind-text span:last-child{ font-size:15px; font-weight:700; }
+
+.hud-right{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:6px;
+  flex-shrink:0;
+}
 
 .distance-live{
   pointer-events:none;
@@ -437,6 +448,11 @@ button, .btn{
   font-weight:900;
   font-size:18px;
   color:var(--coral-deep);
+  /* 向かい風〜10000.0mまでを想定した幅で固定し、桁数が変わってもぷるぷる動かないようにする */
+  width: 132px;
+  box-sizing: border-box;
+  text-align:right;
+  font-variant-numeric: tabular-nums;
 }
 .distance-live span{ font-size:11px; margin-left:2px; color:var(--ink-soft); }
 
@@ -462,19 +478,27 @@ button, .btn{
 @keyframes hintBob{ 0%,100%{ transform: translate(-50%,-50%);} 50%{ transform: translate(-50%,-58%);} }
 
 .debug-info{
-  position:absolute;
-  top: calc(env(safe-area-inset-top) + 64px);
-  left: 14px;
-  z-index:5;
   font-family: monospace;
   font-size:11px;
-  line-height:1.5;
+  line-height:1.4;
   color: rgba(255,255,255,.85);
   background: rgba(43,43,51,.45);
   padding:4px 8px;
   border-radius:8px;
   pointer-events:none;
-  white-space:pre;
+  width: 132px;
+  box-sizing: border-box;
+  text-align:right;
+}
+.debug-info div{ white-space:nowrap; }
+
+.aim-tap-hint{
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:14px;
+  color: var(--ink-soft);
+  text-align:center;
+  animation: pulseBtn 1.4s ease-in-out infinite;
 }
 
 .aim-panel{

@@ -292,7 +292,6 @@
     wind: 0, windTarget: 0, windTimer: 0, windChangeInterval: 2.5,
     elapsed: 0,
     lastTapTime: 0,
-    tapBoost: 0, // タップで積み上がる「落下しにくさ」。時間で自然に減っていく
     hasLeftGround: false,
     groundParticles: [],
   };
@@ -384,29 +383,43 @@
     GameState.x = 0;
     GameState.y = 0.05;
     GameState.elapsed = 0;
-    GameState.tapBoost = 0;
     GameState.hasLeftGround = false;
   }
 
-  const TAP_BOOST_MAX = 4.0;        // タップで積み上げられる「落下しにくさ」の上限
-  const TAP_BOOST_DECAY_RATE = 1.1; // 何もしないと1秒あたりこれだけ効果が薄れる（前より緩やか）
-  const TAP_MAX_REDUCTION = 0.95;   // 最大までタップした時、重力を何%まで弱められるか
+  /* ==== タップ関連の調整用パラメータ ====================================
+     ここを動かすだけでタップの効きの強さ・シビアさを調整できます。
 
-  // 飛行中のタップで「機体の先が下がるのを防ぐ」＝vyを直接持ち上げず、
-  // 重力の効きを一時的に弱めることで落下にブレーキをかける
+     TAP_VY_RANGE      : |vy|がこの値を超えるとタップの効果はほぼ0になる。
+                          値を大きくするほど「多少vyがブレていてもタップが効く」
+                          優しい仕様になる。小さくするほどシビア（水平キープが難しい）。
+     TAP_BASE_POWER    : vy=0（水平）でタップした瞬間の、1回あたりの上昇量。
+                          大きくするとタップの威力そのものが強くなる。
+                          ※ここを上げすぎると、連打の最大レートだけで常に重力に
+                            勝ててしまい「vxが減ると追いつかなくなる」感覚が消えるので注意。
+     TAP_DECAY_RATE    : 飛行時間が経つにつれてタップ威力がごく微量ずつ弱くなる速さ。
+     TAP_DECAY_FLOOR   : どれだけ時間が経ってもこれ以上は弱くならない下限（0にはならない）。
+  ======================================================================== */
+  const TAP_VY_RANGE = 6.0;
+  const TAP_BASE_POWER = 0.6;
+  const TAP_DECAY_RATE = 0.006;
+  const TAP_DECAY_FLOOR = 0.55;
+
+  // 飛行中のタップで「機体の先が下がるのを防ぐ」＝vyを直接持ち上げる。
+  // ただし効果はvyが0（水平）に近いほど大きく、vyが大きく崩れているとほぼ効かない。
+  // → タイミングよく連打し続けられれば理論上ずっと水平を保てる（ホバリング）が、
+  //   ズレるほど効きが弱まりさらに立て直しにくくなる、という難易度カーブになる。
   function onFlyTap() {
     if (GameState.phase !== 'flying') return;
     const now = performance.now();
-    if (now - GameState.lastTapTime < 90) return; // 連打すぎ防止のクールダウン
+    if (now - GameState.lastTapTime < 90) return; // 連打すぎ防止のクールダウン（最大taps/秒の上限）
     GameState.lastTapTime = now;
 
-    // タップ1回あたりの効果は全機体共通。時間経過で弱まるため、
-    // 連打してもどこかで必ず落ち始める（無限ホバリング防止）
-    const decay = Math.max(0, 1 - GameState.elapsed * 0.1);
-    const tapPower = 1.6 * decay;
-    // 上向き速度(vy)には一切触れず、「落下しにくさ」を積み上げるだけ。
-    // これでvyが既に大きい時にタップしても、値を引き下げてしまうことがない
-    GameState.tapBoost = Math.min(GameState.tapBoost + tapPower, TAP_BOOST_MAX);
+    // vyが0に近いほど1.0に近づき、大きく外れるほど0に近づく係数
+    const vyProximity = clamp(1 - Math.abs(GameState.vy) / TAP_VY_RANGE, 0, 1);
+    // 飛行時間が経つほどごく微量弱まるが、TAP_DECAY_FLOORより下にはならない
+    const timeFactor = Math.max(TAP_DECAY_FLOOR, 1 - GameState.elapsed * TAP_DECAY_RATE);
+
+    GameState.vy += TAP_BASE_POWER * vyProximity * timeFactor;
     vibrate(6);
   }
   gameCanvas.addEventListener('pointerdown', onFlyTap);
@@ -453,16 +466,34 @@
     speed.textContent = level;
   }
 
+  /* ==== 揚力（速度→落下しにくさ）の調整用パラメータ ======================
+     「vxが大きいほどvyが減りにくい（揚力が効く）」を表現している。
+     揚力の“減りにくさ”はたいくう性能が高いほど有利になる（LIFT_EXP_SCALEの効果）。
+
+     VX_REF                   : この速度でだいたい揚力が飽和する目安値。
+                                 launchSpeedの実用レンジ（約7〜14）を基準に設定。
+     LIFT_EXP_BASE / _SCALE   : vxに対する揚力の伸び方のカーブ。
+                                 指数が小さいほど「vxが多少落ちても揚力を維持しやすい」。
+                                 たいくうが高い機体ほど指数が小さくなるよう作ってある
+                                 （＝おおとり号はvxが落ちても粘りやすい）。
+     MAX_SPEED_LIFT_REDUCTION : vx由来の揚力だけで重力を最大何%まで打ち消せるか。
+                                 1.0に近づけるほど「速度さえあればタップなしでも
+                                 ほぼ落ちない」状態に近づくので、上げすぎ注意。
+  ======================================================================== */
+  const VX_REF = 12;
+  const LIFT_EXP_BASE = 2.2;
+  const LIFT_EXP_SCALE = 1.5;
+  const MAX_SPEED_LIFT_REDUCTION = 0.65;
+
   // ---- 物理シミュレーション ----
   function stepPhysics(dt) {
     const p = selectedPlane;
 
-    // 重力：たいくう性能だけで決まる（たいくうが低いほど速く落ちる）
+    // 重力の素の強さ：たいくう性能だけで決まる（たいくうが低いほど速く落ちる）
     const gravityMult = clamp(1.3 - (p.lift / 10) * 1.0, 0.3, 1.3);
     const gravity = 9.8 * gravityMult;
 
-    // 空気抵抗：スピードが高いほど小さい（速い機体は失速しにくい）。全体を弱めて、
-    // タップしていない時もvxが減速しにくいようにしている
+    // 空気抵抗：スピードが高いほど小さい（速い機体は前進速度が落ちにくい）
     const dragCoeff = clamp(0.16 - (p.speed / 10) * 0.13, 0.02, 0.16) * 0.5;
 
     // 風の影響：たいくう性能（＝翼の大きさ）が高いほど強く受ける（バフもデバフも）
@@ -471,16 +502,25 @@
     GameState.elapsed += dt;
     updateWind(dt);
 
+    // --- vx（前進速度）の更新 ---
+    // 追い風なら加速（減りにくい・増えることもある）、向かい風なら減速が早まる
     const ax = GameState.wind * windInfluence;
     GameState.vx += ax * dt;
+    // 経時的な自然減速（機体性能スピードが高いほど減りにくい）
     GameState.vx -= dragCoeff * GameState.vx * dt;
 
-    // タップで積み上げた「落下しにくさ」は時間とともに自然に薄れる
-    // （連打をやめると1〜1.5秒ほどで効果が切れ、通常の重力に戻る）
-    GameState.tapBoost = Math.max(0, GameState.tapBoost - TAP_BOOST_DECAY_RATE * dt);
-    const gravityReduction = clamp(GameState.tapBoost / TAP_BOOST_MAX, 0, 1) * TAP_MAX_REDUCTION;
-    const effectiveGravity = gravity * (1 - gravityReduction);
+    // --- vx由来の揚力を計算 ---
+    // vxが大きいほど揚力が効いて重力の影響が弱まる。
+    // たいくう性能が高い機体は、vxが多少落ちても揚力を維持しやすい（指数が小さい）
+    const liftExponent = clamp(LIFT_EXP_BASE - (p.lift / 10) * LIFT_EXP_SCALE, 0.5, 2.2);
+    const speedRatio = clamp(GameState.vx / VX_REF, 0, 1.4);
+    const liftFraction = clamp(Math.pow(speedRatio, liftExponent), 0, 1);
+    const effectiveGravity = gravity * (1 - liftFraction * MAX_SPEED_LIFT_REDUCTION);
 
+    // --- vy（落下速度）の更新 ---
+    // タップの効果はonFlyTap側でvyに直接加算済み。ここでは重力分だけ減らす。
+    // vxが減る→揚力が弱まる→effectiveGravityが大きくなる→vyが減りやすくなる、
+    // という形で「vxが減るとタップの効果が追いつかなくなる」が自然に表現される
     GameState.vy -= effectiveGravity * dt;
 
     GameState.x += GameState.vx * dt;
